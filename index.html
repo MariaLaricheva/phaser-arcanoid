@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Phaser Arcanoid</title>
+    <script src="//cdn.jsdelivr.net/npm/phaser@3.11.0/dist/phaser.js"></script>
+    <style type="text/css">
+        body {
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+
+<script type="text/javascript">
+    let gameWidth = 800;
+    let gameHeight = 600
+
+    let config = {
+        type: Phaser.AUTO,
+        width: gameWidth,
+        height: gameHeight,
+        physics: {
+            default: 'arcade',
+            arcade: {
+                gravity: false,
+                debug: false
+            }
+        },
+        scene: {
+            preload: preload,
+            create: create,
+            update: update
+        }
+    };
+
+    let game = new Phaser.Game(config);
+    let paddle;
+    let ball;
+    let blocks;
+    let blocksArray = [
+        '0110',
+        '1111',
+        '0110'
+    ];
+    let blockSize = 32;
+    let score = 0;
+    let scoreText;
+    let lifes = 3;
+    let lifesText;
+    let mainText;
+    let cursors;
+    let enterKey;
+    let gameState = 1;
+
+    function preload() {
+        this.load.image('background', 'assets/background.png');
+        this.load.image('paddle', 'assets/paddle.png');
+        this.load.image('ball', 'assets/ball.png');
+        this.load.image('block', 'assets/block.png');
+    }
+
+    function create() {
+        this.add.image(400, 300, 'background')
+
+        paddle = this.physics.add.image(400, 500, 'paddle')
+        paddle.setCollideWorldBounds(true);
+        paddle.body.immovable = true;
+
+        ball = this.physics.add.image(400, 478, 'ball');
+        ball.setVelocity(20,-200);
+        ball.setCollideWorldBounds(true);
+        ball.setBounce(1, 1);
+        this.physics.world.checkCollision.down = false;
+
+        blocks = this.physics.add.group();
+        generateBlocks();
+
+        scoreText = this.add.text(15,15,'score: 0', {fontsize: '32px', fill: '#fff'});
+        lifesText = this.add.text(700,15,'lives: 3', {fontsize: '32px', fill: '#fff'});
+        mainText = this.add.text(gameWidth/2, gameHeight/2, 'Press SPACE to start', { fontsize: '72px', fill: '#fff'});
+        mainText.setOrigin(0.5);
+
+        cursors = this.input.keyboard.createCursorKeys();
+        enterKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
+
+        this.physics.add.collider(ball, paddle, collideBallPaddle);
+        this.physics.add.collider(ball, blocks, collideBallBlocks)
+    }
+
+    function update() {
+        paddle.setVelocityX(0);
+        if (cursors.left.isDown) {
+            paddle.setVelocityX(-200);
+        } else if (cursors.right.isDown) {
+            paddle.setVelocityX(200);
+        }
+
+        if (gameState == 1) {
+            ball.setVelocity(0,0);
+            ball.setX(paddle.x);
+        }
+
+        if (gameState == 1) {
+            if (cursors.space.isDown) {
+                gameProcess();
+            }
+        } else if (gameState == 2) {
+            if (ball.body.y > gameHeight) {
+                lifes--;
+                lifesText.setText(`lifes: ${lifes}`);
+                if (lifes > 0) {
+                    gameReady();
+                } else {
+                   gameFinish('Game is over. You lost. Press ENTER to restart.');
+                }
+            } else if (blocks.countActive() == 0) {
+                gameFinish('Congratulations! You won. Press ENTER to restart.')
+            }
+        } else if (gameState == 3) {
+            if (enterKey.isDown) {
+                gameInit();
+            }
+        }
+
+
+    }
+
+    function generateBlocks() {
+        let rows = blocksArray.length;
+        let cols = blocksArray[0].length;
+        let offsetX = (gameWidth - blockSize * cols) / 2 + blockSize / 2;
+        let offsetY = gameHeight * 0.1
+
+        for (let i =0; i < rows; i++) {
+            for (let j =0; j < cols; j++) {
+                if (blocksArray[i][j] === '1') {
+                    blocks.create(j*blockSize + offsetX, i*blockSize + offsetY,'block')
+                }
+            }
+        }
+
+        blocks.children.iterate(function(child) {
+            child.body.immovable = true;
+        })
+    }
+
+    function collideBallPaddle(ball, paddle) {
+        let newVelocity = ball.body.velocity.x + paddle.body.velocity.x;
+        if (Math.abs(newVelocity) > 200) {
+            newVelocity = paddle.body.velocity.x;
+        }
+        let loss = paddle.body.velocity.x * Math.random() / 5;
+        newVelocity -= loss;
+        ball.setVelocityX(newVelocity);
+    }
+
+    function collideBallBlocks(ball, block) {
+        block.disableBody(true, true);
+        score++;
+        scoreText.setText(`score: ${score}`);
+    }
+
+    function gameInit() {
+         score = 0;
+         scoreText.setText(`score: ${score}`);
+
+         lifes = 3;
+         lifesText.setText(`lifes: ${lifes}`);
+         blocks.children.iterate(function (child) {
+             child.enableBody(true, child.x, child.y, true, true);
+         });
+        ball.enableBody(true,400, 478,true,true);
+    }
+
+    function gameReady() {
+        gameState = 1;
+
+        ball.setVelocity(0,0);
+        ball.setX(paddle.x);
+        ball.setY(paddle.y - paddle.body.height / 2 - ball.height / 2);
+        mainText.setText('Press SPACE to start');
+        mainText.setVisible(true);
+    }
+
+    function gameProcess() {
+        gameState = 2;
+        ball.setVelocity(10, -200);
+        mainText.setVisible(false);
+    }
+
+    function gameFinish(text) {
+        gameState = 3;
+
+        mainText.setText(text);
+        mainText.setVisible(true);
+        ball.disableBody(true)
+    }
+</script>
+
+</body>
+</html>
